@@ -664,5 +664,4 @@ func Test_trackBlockNumbersForUpkeep(t *testing.T) {
 		logBuffer.trackBlockNumbersForUpkeep(tc.uid, tc.uniqueBlocks)
 		assert.Equal(t, tc.wantEnqueuedBlocks, logBuffer.enqueuedBlocks)
 	}
-
 }

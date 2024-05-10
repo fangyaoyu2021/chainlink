@@ -119,14 +119,20 @@ func (b *logBuffer) Enqueue(uid *big.Int, logs ...logpoller.Log) (int, int) {
 		blockThreshold = 1
 	}
 
+	b.cleanupEnqueuedBlocks(blockThreshold)
+
+	return buf.enqueue(blockThreshold, logs...)
+}
+
+func (b *logBuffer) cleanupEnqueuedBlocks(blockThreshold int64) {
+	b.enqueuedBlockLock.Lock()
+	defer b.enqueuedBlockLock.Unlock()
 	// clean up enqueued block counts
 	for block := range b.enqueuedBlocks {
 		if block < blockThreshold {
 			delete(b.enqueuedBlocks, block)
 		}
 	}
-
-	return buf.enqueue(blockThreshold, logs...)
 }
 
 // trackBlockNumbersForUpkeep keeps track of the number of times we enqueue logs for an upkeep,
@@ -137,7 +143,7 @@ func (b *logBuffer) Enqueue(uid *big.Int, logs ...logpoller.Log) (int, int) {
 func (b *logBuffer) trackBlockNumbersForUpkeep(uid *big.Int, uniqueBlocks map[int64]bool) {
 	b.enqueuedBlockLock.Lock()
 	defer b.enqueuedBlockLock.Unlock()
-	
+
 	for blockNumber := range uniqueBlocks {
 		if blockNumbers, ok := b.enqueuedBlocks[blockNumber]; ok {
 			if upkeepBlockInstances, ok := blockNumbers[uid.String()]; ok {

@@ -76,9 +76,11 @@ type logBuffer struct {
 	lastBlockSeen *atomic.Int64
 	// map of upkeep id to its queue
 	queues map[string]*upkeepLogQueue
+	lock   sync.RWMutex
+
 	// map for then number of times we have enqueued logs for a block number
-	enqueuedBlocks map[int64]map[string]int
-	lock           sync.RWMutex
+	enqueuedBlocks    map[int64]map[string]int
+	enqueuedBlockLock sync.RWMutex
 }
 
 func NewLogBuffer(lggr logger.Logger, lookback, blockRate, logLimit uint32) LogBuffer {
@@ -133,6 +135,9 @@ func (b *logBuffer) Enqueue(uid *big.Int, logs ...logpoller.Log) (int, int) {
 // enqueue call. In the event that we see upkeep logs enqueued for a particular block more than once,
 // we log a message.
 func (b *logBuffer) trackBlockNumbersForUpkeep(uid *big.Int, uniqueBlocks map[int64]bool) {
+	b.enqueuedBlockLock.Lock()
+	defer b.enqueuedBlockLock.Unlock()
+	
 	for blockNumber := range uniqueBlocks {
 		if blockNumbers, ok := b.enqueuedBlocks[blockNumber]; ok {
 			if upkeepBlockInstances, ok := blockNumbers[uid.String()]; ok {

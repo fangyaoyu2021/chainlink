@@ -455,7 +455,7 @@ func NewApplication(opts ApplicationOpts) (Application, error) {
 
 	loopRegistrarConfig := plugins.NewRegistrarConfig(opts.GRPCOpts, opts.LoopRegistry.Register, opts.LoopRegistry.Unregister)
 
-	delegates[job.StandardCapability] = standardcapability.NewDelegate(globalLogger, opts.DS, jobORM, registry, loopRegistrarConfig, telemetryManager,
+	delegates[job.StandardCapability] = standardcapability.NewDelegate(globalLogger, opts.DS, jobORM, opts.CapabilitiesRegistry, loopRegistrarConfig, telemetryManager,
 		pipelineRunner, opts.RelayerChainInteroperators)
 
 	if cfg.OCR2().Enabled() {

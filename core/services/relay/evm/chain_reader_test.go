@@ -46,12 +46,18 @@ const (
 	triggerWithAllTopics    = "TriggeredWithFourTopics"
 )
 
+func TestChainReaderInterface(t *testing.T) {
+	t.Parallel()
+
+	it := &chainReaderInterfaceTester{}
+
+	RunChainReaderInterfaceTests(t, it)
+	RunChainReaderInterfaceTests(t, commontestutils.WrapChainReaderTesterForLoop(it))
+}
+
 func TestChainReaderGetLatestValue(t *testing.T) {
 	t.Parallel()
 	it := &chainReaderInterfaceTester{}
-
-	RunChainReaderGetLatestValueInterfaceTests(t, it)
-	RunChainReaderGetLatestValueInterfaceTests(t, commontestutils.WrapChainReaderTesterForLoop(it))
 
 	t.Run("Dynamically typed topics can be used to filter and have type correct in return", func(t *testing.T) {
 		it.Setup(t)
@@ -108,14 +114,6 @@ func TestChainReaderGetLatestValue(t *testing.T) {
 		assert.Equal(t, int32(2), latest.Field2)
 		assert.Equal(t, int32(3), latest.Field3)
 	})
-}
-
-func TestChainReaderQueryKey(t *testing.T) {
-	t.Parallel()
-	it := &chainReaderInterfaceTester{}
-
-	RunQueryKeyInterfaceTests(t, it)
-	RunQueryKeyInterfaceTests(t, commontestutils.WrapChainReaderTesterForLoop(it))
 }
 
 func triggerFourTopics(t *testing.T, it *chainReaderInterfaceTester, i1, i2, i3 int32) {
@@ -200,11 +198,13 @@ func (it *chainReaderInterfaceTester) Setup(t *testing.T) {
 						OutputModifications: codec.ModifiersConfig{
 							&codec.RenameModifierConfig{Fields: map[string]string{"NestedStruct.Inner.IntVal": "I"}},
 						},
+						ConfidenceConfirmations: map[string]int{"0.0": 0, "1.0": -1},
 					},
 					EventWithFilterName: {
-						ChainSpecificName: "Triggered",
-						ReadType:          types.Event,
-						EventInputFields:  []string{"Field"},
+						ChainSpecificName:       "Triggered",
+						ReadType:                types.Event,
+						EventInputFields:        []string{"Field"},
+						ConfidenceConfirmations: map[string]int{"0.0": 0, "1.0": -1},
 					},
 					triggerWithDynamicTopic: {
 						ChainSpecificName: triggerWithDynamicTopic,
@@ -213,11 +213,13 @@ func (it *chainReaderInterfaceTester) Setup(t *testing.T) {
 						InputModifications: codec.ModifiersConfig{
 							&codec.RenameModifierConfig{Fields: map[string]string{"FieldHash": "Field"}},
 						},
+						ConfidenceConfirmations: map[string]int{"0.0": 0, "1.0": -1},
 					},
 					triggerWithAllTopics: {
-						ChainSpecificName: triggerWithAllTopics,
-						ReadType:          types.Event,
-						EventInputFields:  []string{"Field1", "Field2", "Field3"},
+						ChainSpecificName:       triggerWithAllTopics,
+						ReadType:                types.Event,
+						EventInputFields:        []string{"Field1", "Field2", "Field3"},
+						ConfidenceConfirmations: map[string]int{"0.0": 0, "1.0": -1},
 					},
 					MethodReturningSeenStruct: {
 						ChainSpecificName: "returnSeen",

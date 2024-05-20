@@ -1,9 +1,11 @@
 package targets_test
 
 import (
+	"encoding/hex"
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/smartcontractkit/chainlink-common/pkg/capabilities"
 	"github.com/smartcontractkit/chainlink-common/pkg/values"
 	"github.com/smartcontractkit/chainlink/v2/core/capabilities/targets"
@@ -24,12 +26,21 @@ import (
 
 var forwardABI = types.MustGetABI(forwarder.KeystoneForwarderMetaData.ABI)
 
+func addr(t *testing.T, lastByte string) []byte {
+	contractAddr, err := hex.DecodeString("00000000000000000000000000000000000000000000000000000000000000" + lastByte)
+	require.NoError(t, err)
+	return contractAddr
+}
+
 func TestEvmWrite(t *testing.T) {
 	chain := evmmocks.NewChain(t)
 
 	txManager := txmmocks.NewMockEvmTxManager(t)
 	chain.On("ID").Return(big.NewInt(11155111))
 	chain.On("TxManager").Return(txManager)
+	chain.On("LogPoller").Return(nil)
+	ethClient := evmtest.NewEthClientMockWithDefaultChain(t)
+	chain.On("Client").Return(ethClient)
 
 	cfg := configtest.NewGeneralConfig(t, func(c *chainlink.Config, s *chainlink.Secrets) {
 		a := testutils.NewAddress()
@@ -48,7 +59,9 @@ func TestEvmWrite(t *testing.T) {
 	capability := targets.NewEvmWrite(chain, logger.TestLogger(t))
 	ctx := testutils.Context(t)
 
-	config, err := values.NewMap(map[string]any{})
+	config, err := values.NewMap(map[string]any{
+		"address": "0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF",
+	})
 	require.NoError(t, err)
 
 	inputs, err := values.NewMap(map[string]any{
@@ -64,6 +77,13 @@ func TestEvmWrite(t *testing.T) {
 		Config: config,
 		Inputs: inputs,
 	}
+
+	ethClient.On("CallContract", mock.Anything, mock.IsType(ethereum.CallMsg{}), mock.IsType(&big.Int{})).Run(func(args mock.Arguments) {
+		// callMsg := args.Get(1).(ethereum.CallMsg)
+		// assert.Equal(t, rollups.ArbGasInfoAddress, callMsg.To.String())
+		// assert.Equal(t, rollups.ArbGasInfo_getPricesInArbGas, fmt.Sprintf("%x", callMsg.Data))
+		// assert.Equal(t, big.NewInt(-1), blockNumber)
+	}).Return(addr(t, "00"), nil)
 
 	txManager.On("CreateTransaction", mock.Anything, mock.Anything).Return(txmgr.Tx{}, nil).Run(func(args mock.Arguments) {
 		req := args.Get(1).(txmgr.TxRequest)
@@ -107,8 +127,7 @@ func TestEvmWrite_EmptyReport(t *testing.T) {
 	ctx := testutils.Context(t)
 
 	config, err := values.NewMap(map[string]any{
-		"abi":    "receive(report bytes)",
-		"params": []any{"$(report)"},
+		"address": "0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF",
 	})
 	require.NoError(t, err)
 

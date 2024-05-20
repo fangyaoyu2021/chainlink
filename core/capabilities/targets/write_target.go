@@ -10,6 +10,7 @@ import (
 	chainselectors "github.com/smartcontractkit/chain-selectors"
 
 	"github.com/smartcontractkit/chainlink-common/pkg/capabilities"
+	commontypes "github.com/smartcontractkit/chainlink-common/pkg/types"
 	"github.com/smartcontractkit/chainlink-common/pkg/types/core"
 	"github.com/smartcontractkit/chainlink-common/pkg/values"
 	txmgrcommon "github.com/smartcontractkit/chainlink/v2/common/txmgr"
@@ -18,6 +19,8 @@ import (
 	"github.com/smartcontractkit/chainlink/v2/core/chains/legacyevm"
 	"github.com/smartcontractkit/chainlink/v2/core/gethwrappers/keystone/generated/forwarder"
 	"github.com/smartcontractkit/chainlink/v2/core/logger"
+	evm "github.com/smartcontractkit/chainlink/v2/core/services/relay/evm"
+	relayevmtypes "github.com/smartcontractkit/chainlink/v2/core/services/relay/evm/types"
 )
 
 var forwardABI = evmtypes.MustGetABI(forwarder.KeystoneForwarderMetaData.ABI)
@@ -84,9 +87,21 @@ func parseConfig(rawConfig *values.Map) (EvmConfig, error) {
 	return config, err
 }
 
+func success() <-chan capabilities.CapabilityResponse {
+	callback := make(chan capabilities.CapabilityResponse)
+	go func() {
+		// TODO: cast tx.Error to Err (or Value to Value?)
+		callback <- capabilities.CapabilityResponse{
+			Value: nil,
+			Err:   nil,
+		}
+		close(callback)
+	}()
+	return callback
+}
+
 func (cap *EvmWrite) Execute(ctx context.Context, request capabilities.CapabilityRequest) (<-chan capabilities.CapabilityResponse, error) {
 	cap.lggr.Debugw("Execute", "request", request)
-	// TODO: idempotency
 
 	txm := cap.chain.TxManager()
 
@@ -96,7 +111,6 @@ func (cap *EvmWrite) Execute(ctx context.Context, request capabilities.Capabilit
 	if err != nil {
 		return nil, err
 	}
-
 	var inputs struct {
 		Report     []byte
 		Signatures [][]byte
@@ -108,19 +122,47 @@ func (cap *EvmWrite) Execute(ctx context.Context, request capabilities.Capabilit
 	if inputs.Report == nil {
 		// We received any empty report -- this means we should skip transmission.
 		cap.lggr.Debugw("Skipping empty report", "request", request)
-		callback := make(chan capabilities.CapabilityResponse)
-		go func() {
-			// TODO: cast tx.Error to Err (or Value to Value?)
-			callback <- capabilities.CapabilityResponse{
-				Value: nil,
-				Err:   nil,
-			}
-			close(callback)
-		}()
-		return callback, nil
+		return success(), nil
 	}
 
 	// TODO: validate encoded report is prefixed with workflowID and executionID that match the request meta
+
+	// Check whether value was already transmitted on chain
+	cr, err := evm.NewChainReaderService(ctx, cap.lggr, cap.chain.LogPoller(), cap.chain.Client(), relayevmtypes.ChainReaderConfig{
+		Contracts: map[string]relayevmtypes.ChainContractReader{
+			"forwarder": {
+				ContractABI: forwarder.KeystoneForwarderABI,
+				Configs: map[string]*relayevmtypes.ChainReaderDefinition{
+					"getTransmitter": {
+						ChainSpecificName: "getTransmitter",
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	var transmitter common.Address
+	cr.Bind(ctx, []commontypes.BoundContract{{
+		Address: config.ForwarderAddress().String(),
+		Name:    "forwarder",
+		// Pending: false, // ???
+	}})
+	queryInputs := struct {
+		Receiver            string
+		WorkflowExecutionID []byte
+	}{
+		Receiver:            reqConfig.Address,
+		WorkflowExecutionID: []byte(request.Metadata.WorkflowExecutionID),
+	}
+	if err := cr.GetLatestValue(ctx, "forwarder", "getTransmitter", queryInputs, &transmitter); err != nil {
+		return nil, err
+	}
+	if transmitter != common.HexToAddress("0x0") {
+		// report already transmitted, early return
+		return success(), nil
+	}
 
 	// construct forwarder payload
 	calldata, err := forwardABI.Pack("report", common.HexToAddress(reqConfig.Address), inputs.Report, inputs.Signatures)
@@ -132,19 +174,16 @@ func (cap *EvmWrite) Execute(ctx context.Context, request capabilities.Capabilit
 		// FwdrDestAddress could also be set for better logging but it's used for various purposes around Operator Forwarders
 		WorkflowExecutionID: &request.Metadata.WorkflowExecutionID,
 	}
-	strategy := txmgrcommon.NewSendEveryStrategy()
-
-	checker := txmgr.TransmitCheckerSpec{
-		CheckerType: txmgr.TransmitCheckerTypeSimulate,
-	}
 	req := txmgr.TxRequest{
 		FromAddress:    config.FromAddress().Address(),
 		ToAddress:      config.ForwarderAddress().Address(),
 		EncodedPayload: calldata,
 		FeeLimit:       uint64(defaultGasLimit),
 		Meta:           txMeta,
-		Strategy:       strategy,
-		Checker:        checker,
+		Strategy:       txmgrcommon.NewSendEveryStrategy(),
+		Checker: txmgr.TransmitCheckerSpec{
+			CheckerType: txmgr.TransmitCheckerTypeSimulate,
+		},
 		// SignalCallback:   true, TODO: add code that checks if a workflow id is present, if so, route callback to chainwriter rather than pipeline
 	}
 	tx, err := txm.CreateTransaction(ctx, req)
@@ -152,17 +191,7 @@ func (cap *EvmWrite) Execute(ctx context.Context, request capabilities.Capabilit
 		return nil, err
 	}
 	cap.lggr.Debugw("Transaction submitted", "request", request, "transaction", tx)
-
-	callback := make(chan capabilities.CapabilityResponse)
-	go func() {
-		// TODO: cast tx.Error to Err (or Value to Value?)
-		callback <- capabilities.CapabilityResponse{
-			Value: nil,
-			Err:   nil,
-		}
-		close(callback)
-	}()
-	return callback, nil
+	return success(), nil
 }
 
 func (cap *EvmWrite) RegisterToWorkflow(ctx context.Context, request capabilities.RegisterToWorkflowRequest) error {

@@ -70,5 +70,5 @@ struct FunctionsBillingConfig {
   uint32 requestTimeoutSeconds; // ════════════════╝ How many seconds it takes before we consider a request to be timed out
   uint16 donFeeCentsUsd; // ═══════════════════════════════╗ Additional flat fee (denominated in cents of USD, paid as LINK) that will be split between Node Operators.
   uint16 operationFeeCentsUsd; //                          ║ Additional flat fee (denominated in cents of USD, paid as LINK) that will be paid to the owner of the Coordinator contract.
-  uint24 transmitTxSizeBytes; // ══════════════════════════╝ The size of the transmit transaction in bytes assuming a single 256 byte response payload. Used to estimate L1 cost for fulfillments on L2 chains.
+  uint16 transmitTxSizeBytes; // ══════════════════════════╝ The size of the transmit transaction in bytes assuming a single 256 byte response payload. Used to estimate L1 cost for fulfillments on L2 chains.
 }

@@ -595,6 +595,16 @@ func newOnChainContractTransmitter(ctx context.Context, lggr logger.Logger, rarg
 	)
 }
 
+func (r *Relayer) NewChainReader(chainReaderConfig []byte) (commontypes.ChainReader, error) {
+	ctx := context.Background()
+	cfg := &types.ChainReaderConfig{}
+	if err := json.Unmarshal(chainReaderConfig, cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshall chain reader config err: %s", err)
+	}
+
+	return NewChainReaderService(ctx, r.lggr, r.chain.LogPoller(), r.chain.Client(), *cfg)
+}
+
 func (r *Relayer) NewMedianProvider(rargs commontypes.RelayArgs, pargs commontypes.PluginArgs) (commontypes.MedianProvider, error) {
 	// TODO https://smartcontract-it.atlassian.net/browse/BCF-2887
 	ctx := context.Background()

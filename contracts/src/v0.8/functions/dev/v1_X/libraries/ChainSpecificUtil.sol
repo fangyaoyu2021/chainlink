@@ -9,7 +9,7 @@ import {L1Block} from "../../../../vendor/@eth-optimism/contracts-bedrock/v0.17.
 library ChainSpecificUtil {
   // ------------ Start Arbitrum Constants ------------
 
-  /// @dev ARB_L1_FEE_DATA_PADDING_SIZE is the L1 data padding for Optimism
+  /// @dev ARB_L1_FEE_DATA_PADDING_SIZE is the L1 data padding for Arbitrum
   uint256 private constant ARB_L1_FEE_DATA_PADDING_SIZE = 140;
   /// @dev ARBGAS_ADDR is the address of the ArbGasInfo precompile on Arbitrum.
   /// @dev reference: https://github.com/OffchainLabs/nitro/blob/v2.0.14/contracts/src/precompiles/ArbGasInfo.sol#L10

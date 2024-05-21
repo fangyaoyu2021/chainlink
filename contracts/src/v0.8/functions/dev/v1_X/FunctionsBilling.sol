@@ -204,7 +204,8 @@ abstract contract FunctionsBilling is Routable, IFunctionsBilling {
     uint256 totalFeeWei = (gasPriceWei * executionGas) + l1FeeWei;
 
     // Basis Points are 1/100th of 1%, divide by 10_000 to bring back to original units
-    uint256 totalFeeWeiWithOverestimate = totalFeeWei + ((totalFeeWei * s_config.fulfillmentGasPriceOverEstimationBP) / 10_000);
+    uint256 totalFeeWeiWithOverestimate = totalFeeWei +
+      ((totalFeeWei * s_config.fulfillmentGasPriceOverEstimationBP) / 10_000);
 
     uint96 estimatedGasReimbursementJuels = _getJuelsFromWei(totalFeeWeiWithOverestimate);
 

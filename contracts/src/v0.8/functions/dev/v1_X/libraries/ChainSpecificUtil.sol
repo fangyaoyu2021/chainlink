@@ -42,6 +42,7 @@ library ChainSpecificUtil {
 
   /// @notice Returns the upper limit estimate of the L1 fees in wei that will be paid for L2 chains
   /// @notice based on the size of the transaction data and the current gas conditions.
+  /// @notice This is an "upper limit" as it assumes the transaction data is uncompressed when posted on L1.
   function _getL1FeeUpperLimit(uint256 dataSizeBytes) internal view returns (uint256 l1FeeWei) {
     uint256 chainid = block.chainid;
     if (_isArbitrumChainId(chainid)) {
@@ -55,7 +56,7 @@ library ChainSpecificUtil {
       uint256 l1BaseFeeScalar = L1BLOCK.baseFeeScalar();
       uint256 l1BlobBaseFeeWei = L1BLOCK.blobBaseFee();
       uint256 l1BlobBaseFeeScalar = L1BLOCK.blobBaseFeeScalar();
-      uint256 weightedGasPrice = ((l1BaseFeeScalar * l1BaseFeeWei + l1BlobBaseFeeScalar * l1BlobBaseFeeWei) / 10) ^ 6;
+      uint256 weightedGasPrice = (l1BaseFeeScalar * l1BaseFeeWei + l1BlobBaseFeeScalar * l1BlobBaseFeeWei) / 10**6;
       return weightedGasPrice * (dataSizeBytes + OP_L1_FEE_DATA_PADDING_SIZE);
     }
     return 0;
